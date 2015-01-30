@@ -16,6 +16,25 @@
                     <target>1.7</target>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.jvnet.jaxb2.maven2</groupId>
+                <artifactId>maven-jaxb2-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>generate-xmltv-schema</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <generatePackage>com.metabroadcast.nonametv.xml</generatePackage>
+                            <schemaIncludes>
+                                <schemaInclude>xmltv.dtd</schemaInclude>
+                            </schemaIncludes>
+                        <staleFile>${project.build.directory}/jaxb2/.xmltvXjcStaleFlag</staleFile>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
 
         <extensions>
