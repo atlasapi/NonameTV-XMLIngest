@@ -9,6 +9,7 @@ import com.google.common.net.HostSpecifier;
 import com.metabroadcast.common.ingest.MessageStreamer;
 import com.metabroadcast.common.properties.Configurer;
 import com.metabroadcast.nonametv.ingest.s3.process.XMLTVFileProcessor;
+import com.metabroadcast.nonametv.ingest.s3.process.translate.ProgrammeToItemTranslator;
 
 /**
  * @author will
@@ -27,7 +28,7 @@ public class NonameTvXmlIngestMain {
             Configurer.get("aws.accessKey").get(),
             Configurer.get("aws.secretKey").get()));
 
-        messageStreamer.registerFileProcessor(S3_BUCKET_NAME, new XMLTVFileProcessor(atlasClient));
+        messageStreamer.registerFileProcessor(S3_BUCKET_NAME, new XMLTVFileProcessor(atlasClient, new ProgrammeToItemTranslator()));
 
         while (true) {
             messageStreamer.streamNextMessage();
