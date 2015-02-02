@@ -19,6 +19,8 @@ import com.metabroadcast.nonametv.xml.*;
  */
 public class ProgrammeToItemTranslator {
 
+    private static final String URL_PREFIX = "http://nonametv.org/";
+    private static final String XMLTV_NS_EPISODE_NUM_SYSTEM = "xmltv_ns";
     private static final Pattern XMLTV_NS_SEASON_AND_EPISODE_NUMBER = Pattern.compile("(\\d+)\\s+\\.\\s+(\\d+)\\s+\\.");
     private static final Pattern XMLTV_STAR_RATING = Pattern.compile("([\\d\\.]+)\\s+/\\s+([\\d\\.]+)");
     private static final DateTimeFormatter XMLTV_DATE_FORMAT = DateTimeFormat.forPattern("yyyyMMddHHmmss Z");
@@ -28,13 +30,13 @@ public class ProgrammeToItemTranslator {
 
         item.setType("episode");
 
-        String itemUri = "http://nonametv.org/" + programme.getChannel() + programme.getStart() + programme.getStop();
+        String itemUri = URL_PREFIX + programme.getChannel() + programme.getStart() + programme.getStop();
         itemUri = itemUri.replace(" ", "");
         item.setUri(itemUri);
 
         item.setTitle(programme.getTitle().get(0).getvalue());
 
-        Set<LocalizedDescription> descriptionSet = new HashSet<LocalizedDescription>();
+        Set<LocalizedDescription> descriptionSet = new HashSet<>();
         for (Desc desc : programme.getDesc()) {
             if ("en".equals(desc.getLang())) {
                 item.setDescription(desc.getvalue());
@@ -45,7 +47,7 @@ public class ProgrammeToItemTranslator {
             }
         }
         item.setDescriptions(descriptionSet);
-        List<Person> personList = new ArrayList<Person>();
+        List<Person> personList = new ArrayList<>();
         Credits credits = programme.getCredits();
         for (Actor actor : credits.getActor()) {
             Person person = new Person();
@@ -114,19 +116,19 @@ public class ProgrammeToItemTranslator {
         } catch (NumberFormatException e) {
             throw new TranslationException("Unable to parse integer year from date element", e);
         }
-        List<String> genreList = new ArrayList<String>(programme.getCategory().size());
+        List<String> genreList = new ArrayList<>(programme.getCategory().size());
         for (Category category : programme.getCategory()) {
-            genreList.add(category.getvalue());
+            genreList.add(URL_PREFIX + category.getvalue());
         }
         item.setGenres(genreList);
-        Set<String> aliasSet = new HashSet<String>();
+        Set<String> aliasSet = new HashSet<>();
         for (Url url : programme.getUrl()) {
             aliasSet.add(url.getvalue());
         }
         item.setAliases(aliasSet);
 
         for (EpisodeNum episodeNum : programme.getEpisodeNum()) {
-            if ("xmltv_ns".equals(episodeNum.getSystem())) {
+            if (XMLTV_NS_EPISODE_NUM_SYSTEM.equals(episodeNum.getSystem())) {
                 Matcher matcher = XMLTV_NS_SEASON_AND_EPISODE_NUMBER.matcher(episodeNum.getvalue());
                 if (matcher.matches()) {
                     item.setSeriesNumber(Integer.parseInt(matcher.group(1)) + 1);
@@ -143,7 +145,7 @@ public class ProgrammeToItemTranslator {
             throw new TranslationException("Unable to parse integer year from date element", e);
         }
 
-        List<org.atlasapi.media.entity.simple.Rating> ratingList = new ArrayList<org.atlasapi.media.entity.simple.Rating>();
+        List<org.atlasapi.media.entity.simple.Rating> ratingList = new ArrayList<>();
         for (StarRating starRating : programme.getStarRating()) {
             Matcher matcher = XMLTV_STAR_RATING.matcher(starRating.getValue());
             if (matcher.matches()) {
@@ -159,14 +161,14 @@ public class ProgrammeToItemTranslator {
         }
         item.setRatings(ratingList);
 
-        List<com.metabroadcast.common.intl.Country> countryList = new ArrayList<com.metabroadcast.common.intl.Country>();
+        List<com.metabroadcast.common.intl.Country> countryList = new ArrayList<>();
         for (Country country : programme.getCountry()) {
             com.metabroadcast.common.intl.Country countryListEntry = Countries.fromCode(country.getvalue());
             countryList.add(countryListEntry);
         }
         item.setCountriesOfOrigin(countryList);
 
-        List<Broadcast> broadcastList = new ArrayList<Broadcast>();
+        List<Broadcast> broadcastList = new ArrayList<>();
         Broadcast broadcast = new Broadcast("http://" + programme.getChannel() + "/",
             XMLTV_DATE_FORMAT.parseDateTime(programme.getStart()),
             XMLTV_DATE_FORMAT.parseDateTime(programme.getStop()));
