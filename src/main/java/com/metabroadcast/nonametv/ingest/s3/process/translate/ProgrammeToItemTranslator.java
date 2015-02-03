@@ -164,7 +164,9 @@ public class ProgrammeToItemTranslator {
         List<com.metabroadcast.common.intl.Country> countryList = new ArrayList<>();
         for (Country country : programme.getCountry()) {
             com.metabroadcast.common.intl.Country countryListEntry = Countries.fromCode(country.getvalue());
-            countryList.add(countryListEntry);
+            if (null != countryListEntry) {
+                countryList.add(countryListEntry);
+            }
         }
         item.setCountriesOfOrigin(countryList);
 
