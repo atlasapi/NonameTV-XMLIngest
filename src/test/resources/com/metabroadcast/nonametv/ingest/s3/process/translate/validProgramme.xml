@@ -1,0 +1,19 @@
+<programme channel="foxtv.no" start="20150106014000 +0100" stop="20150106023500 +0100">
+    <title lang="no">Medium</title>
+    <sub-title lang="no">The One Behind the Wheel</sub-title>
+    <desc lang="en">Description of Medium</desc>
+    <desc lang="no">Joe prøver å finne ut av ting når Allison er besatt av en annen kvinne.</desc>
+    <credits>
+        <director>Leon Ichaso</director>
+        <actor role="Marie DuBois">Madison Carabello</actor>
+    </credits>
+    <date>2005</date>
+    <category lang="en">series</category>
+    <category lang="en">Drama</category>
+    <url>http://thetvdb.com/?tab=episode&amp;seriesid=73265&amp;seasonid=16881&amp;id=315802&amp;lid=9</url>
+    <country>FR</country>
+    <episode-num system="xmltv_ns">2 . 11 .</episode-num>
+    <star-rating>
+        <value>6.9 / 9</value>
+    </star-rating>
+</programme>
