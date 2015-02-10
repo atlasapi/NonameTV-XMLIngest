@@ -1,4 +1,4 @@
-package com.metabroadcast.nonametv.ingest.s3.process.translate;
+package com.metabroadcast.nonametv.ingest.process.translate;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -7,16 +7,36 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.atlasapi.media.entity.simple.*;
+import org.atlasapi.media.entity.simple.Broadcast;
+import org.atlasapi.media.entity.simple.Item;
+import org.atlasapi.media.entity.simple.LocalizedDescription;
+import org.atlasapi.media.entity.simple.Person;
+import org.atlasapi.media.entity.simple.PublisherDetails;
+import org.atlasapi.media.entity.simple.Rating;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
+import com.google.common.collect.Iterables;
 import com.metabroadcast.common.intl.Countries;
-import com.metabroadcast.nonametv.xml.*;
+import com.metabroadcast.nonametv.xml.Actor;
+import com.metabroadcast.nonametv.xml.Adapter;
+import com.metabroadcast.nonametv.xml.Category;
+import com.metabroadcast.nonametv.xml.Commentator;
+import com.metabroadcast.nonametv.xml.Composer;
+import com.metabroadcast.nonametv.xml.Country;
+import com.metabroadcast.nonametv.xml.Credits;
+import com.metabroadcast.nonametv.xml.Desc;
+import com.metabroadcast.nonametv.xml.Director;
+import com.metabroadcast.nonametv.xml.Editor;
+import com.metabroadcast.nonametv.xml.EpisodeNum;
+import com.metabroadcast.nonametv.xml.Guest;
+import com.metabroadcast.nonametv.xml.Presenter;
+import com.metabroadcast.nonametv.xml.Producer;
+import com.metabroadcast.nonametv.xml.Programme;
+import com.metabroadcast.nonametv.xml.StarRating;
+import com.metabroadcast.nonametv.xml.Url;
+import com.metabroadcast.nonametv.xml.Writer;
 
-/**
- * @author will
- */
 public class ProgrammeToItemTranslator {
 
     private static final String URL_PREFIX = "http://nonametv.org/";
@@ -25,28 +45,80 @@ public class ProgrammeToItemTranslator {
     private static final Pattern XMLTV_STAR_RATING = Pattern.compile("([\\d\\.]+)\\s+/\\s+([\\d\\.]+)");
     private static final DateTimeFormatter XMLTV_DATE_FORMAT = DateTimeFormat.forPattern("yyyyMMddHHmmss Z");
 
-    public Item translate(Programme programme) throws TranslationException {
+    public TranslationResult translate(Programme programme) {
+        List<String> warnings = new ArrayList<>();
         Item item = new Item();
-
+        String itemUri = getUri(programme);
         item.setType("episode");
+        item.setUri(itemUri);
+        item.setTitle(getTitle(programme));
+        item.setDescriptions(getLocalizedDescriptions(programme));
+        item.setDescription(getDescription(programme));
+        item.setPeople(getPeople(programme, itemUri));
+        try {
+            item.setYear(getYear(programme));
+        } catch (NumberFormatException e) {
+            warnings.add("Unable to parse year from programme");
+        }
+        item.setGenres(getGenres(programme));
+        item.setAliases(getAliases(programme));
+        if (hasSeriesAndEpisodeNumber(programme)) {
+            try {
+                item.setSeriesNumber(getSeriesNumber(programme));
+            } catch (IllegalArgumentException e) {
+                warnings.add(e.getMessage());
+            }
+            try {
+                item.setEpisodeNumber(getEpisodeNumber(programme));
+            } catch (IllegalArgumentException e) {
+                warnings.add(e.getMessage());
+            }
+        }
+        item.setRatings(getRatings(programme));
+        item.setCountriesOfOrigin(getCountriesOfOrigin(programme));
+        item.setBroadcasts(getBroadcasts(programme));
+        item.setPublisher(new PublisherDetails("nonametv"));
 
+        if (warnings.isEmpty()) {
+            return new TranslationResult(item);
+        } else {
+            return new TranslationResult(item, TranslationResult.Status.WARNING, warnings.toArray(new String[] {}));
+        }
+    }
+
+    private String getUri(Programme programme) {
         String itemUri = URL_PREFIX + programme.getChannel() + programme.getStart() + programme.getStop();
         itemUri = itemUri.replace(" ", "");
-        item.setUri(itemUri);
+        return itemUri;
+    }
 
-        item.setTitle(programme.getTitle().get(0).getvalue());
+    private String getTitle(Programme programme) {
+        return Iterables.getOnlyElement(programme.getTitle()).getvalue();
+    }
 
+    private Set<LocalizedDescription> getLocalizedDescriptions(Programme programme) {
         Set<LocalizedDescription> descriptionSet = new HashSet<>();
         for (Desc desc : programme.getDesc()) {
-            if ("en".equals(desc.getLang())) {
-                item.setDescription(desc.getvalue());
-            } else {
+            if (!"en".equals(desc.getLang())) {
                 LocalizedDescription localizedDescription = new LocalizedDescription();
                 localizedDescription.setDescription(desc.getvalue());
                 descriptionSet.add(localizedDescription);
             }
         }
-        item.setDescriptions(descriptionSet);
+        return descriptionSet;
+    }
+
+    private String getDescription(Programme programme) {
+        for (Desc desc : programme.getDesc()) {
+            if ("en".equals(desc.getLang())) {
+                return desc.getvalue();
+            }
+        }
+
+        return "";
+    }
+
+    private List<Person> getPeople(Programme programme, String itemUri) {
         List<Person> personList = new ArrayList<>();
         Credits credits = programme.getCredits();
         for (Actor actor : credits.getActor()) {
@@ -110,57 +182,86 @@ public class ProgrammeToItemTranslator {
             person.setUri(itemUri + "/" + writer.getvalue());
             personList.add(person);
         }
-        item.setPeople(personList);
-        try {
-            item.setYear(Integer.parseInt(programme.getDate()));
-        } catch (NumberFormatException e) {
-            throw new TranslationException("Unable to parse integer year from date element", e);
-        }
+        return personList;
+    }
+
+    private int getYear(Programme programme) throws NumberFormatException {
+        return Integer.parseInt(programme.getDate());
+    }
+
+    private List<String> getGenres(Programme programme) {
         List<String> genreList = new ArrayList<>(programme.getCategory().size());
         for (Category category : programme.getCategory()) {
             genreList.add(URL_PREFIX + category.getvalue());
         }
-        item.setGenres(genreList);
+        return genreList;
+    }
+
+    private Set<String> getAliases(Programme programme) {
         Set<String> aliasSet = new HashSet<>();
         for (Url url : programme.getUrl()) {
             aliasSet.add(url.getvalue());
         }
-        item.setAliases(aliasSet);
+        return aliasSet;
+    }
 
+    private boolean hasSeriesAndEpisodeNumber(Programme programme) {
+        for (EpisodeNum episodeNum : programme.getEpisodeNum()) {
+            if (XMLTV_NS_EPISODE_NUM_SYSTEM.equals(episodeNum.getSystem())) {
+                Matcher matcher = XMLTV_NS_SEASON_AND_EPISODE_NUMBER.matcher(episodeNum.getvalue());
+                return matcher.matches();
+            }
+        }
+        return false;
+    }
+
+    private int getSeriesNumber(Programme programme) {
         for (EpisodeNum episodeNum : programme.getEpisodeNum()) {
             if (XMLTV_NS_EPISODE_NUM_SYSTEM.equals(episodeNum.getSystem())) {
                 Matcher matcher = XMLTV_NS_SEASON_AND_EPISODE_NUMBER.matcher(episodeNum.getvalue());
                 if (matcher.matches()) {
-                    item.setSeriesNumber(Integer.parseInt(matcher.group(1)) + 1);
-                    item.setEpisodeNumber(Integer.parseInt(matcher.group(2)) + 1);
+                    return Integer.parseInt(matcher.group(1)) + 1;
                 } else {
-                    throw new TranslationException("episode-num system=\"xmltv_ns\" tag was present but contained a value in an unexpected format: " + episodeNum.getvalue());
+                    throw new IllegalArgumentException("episode-num system=\"xmltv_ns\" tag was present but contained a value in an unexpected format: " + episodeNum.getvalue());
                 }
             }
         }
+        throw new IllegalArgumentException("Unable to find episode-num system=\"xmltv_ns\" tag");
+    }
 
-        try {
-            item.setYear(Integer.parseInt(programme.getDate()));
-        } catch (NumberFormatException e) {
-            throw new TranslationException("Unable to parse integer year from date element", e);
+    private int getEpisodeNumber(Programme programme) {
+        for (EpisodeNum episodeNum : programme.getEpisodeNum()) {
+            if (XMLTV_NS_EPISODE_NUM_SYSTEM.equals(episodeNum.getSystem())) {
+                Matcher matcher = XMLTV_NS_SEASON_AND_EPISODE_NUMBER.matcher(episodeNum.getvalue());
+                if (matcher.matches()) {
+                    return Integer.parseInt(matcher.group(2)) + 1;
+                } else {
+                    throw new IllegalArgumentException("episode-num system=\"xmltv_ns\" tag was present but contained a value in an unexpected format: " + episodeNum.getvalue());
+                }
+            }
         }
+        throw new IllegalArgumentException("Unable to find episode-num system=\"xmltv_ns\" tag");
+    }
 
-        List<org.atlasapi.media.entity.simple.Rating> ratingList = new ArrayList<>();
+    private List<Rating> getRatings(Programme programme) {
+        List<Rating> ratingList = new ArrayList<>();
         for (StarRating starRating : programme.getStarRating()) {
             Matcher matcher = XMLTV_STAR_RATING.matcher(starRating.getValue());
             if (matcher.matches()) {
                 double numerator = Double.parseDouble(matcher.group(1));
                 double denominator = Double.parseDouble(matcher.group(2));
-                org.atlasapi.media.entity.simple.Rating rating = new org.atlasapi.media.entity.simple.Rating();
+                Rating rating = new Rating();
                 rating.setValue((float) (numerator / denominator));
                 rating.setPublisherDetails(new PublisherDetails("nonametv"));
                 ratingList.add(rating);
             } else {
-                throw new TranslationException("star-rating tag was present but contained a value in an unexpected format: {}" + starRating.getValue());
+                throw new IllegalArgumentException("star-rating tag was present but contained a value in an unexpected format: " + starRating.getValue());
             }
         }
-        item.setRatings(ratingList);
+        return ratingList;
+    }
 
+    private List<com.metabroadcast.common.intl.Country> getCountriesOfOrigin(Programme programme) {
         List<com.metabroadcast.common.intl.Country> countryList = new ArrayList<>();
         for (Country country : programme.getCountry()) {
             com.metabroadcast.common.intl.Country countryListEntry = Countries.fromCode(country.getvalue());
@@ -168,18 +269,16 @@ public class ProgrammeToItemTranslator {
                 countryList.add(countryListEntry);
             }
         }
-        item.setCountriesOfOrigin(countryList);
+        return countryList;
+    }
 
+    private List<Broadcast> getBroadcasts(Programme programme) {
         List<Broadcast> broadcastList = new ArrayList<>();
         Broadcast broadcast = new Broadcast("http://" + programme.getChannel() + "/",
             XMLTV_DATE_FORMAT.parseDateTime(programme.getStart()),
             XMLTV_DATE_FORMAT.parseDateTime(programme.getStop()));
         broadcastList.add(broadcast);
-        item.setBroadcasts(broadcastList);
-
-        item.setPublisher(new PublisherDetails("nonametv"));
-
-        return item;
+        return broadcastList;
     }
 
 }
