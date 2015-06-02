@@ -1,5 +1,6 @@
 package com.metabroadcast.nonametv.ingest;
 
+import java.io.File;
 import java.util.concurrent.Executor;
 
 import org.atlasapi.client.AtlasWriteClient;
@@ -22,7 +23,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HostSpecifier;
-import com.metabroadcast.common.ingest.MessageStreamer;
+import com.metabroadcast.common.ingest.IngestService;
 import com.metabroadcast.common.properties.Configurer;
 import com.metabroadcast.nonametv.ingest.process.XmlTvFileProcessor;
 import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTranslator;
@@ -41,10 +42,6 @@ public class JettyMain {
             ServerProperties.MEDIA_TYPE_MAPPINGS, "json : application/json"
         ));
 
-        HealthModule healthModule = new HealthModule();
-        ServletHolder healthHolder = new ServletHolder(healthModule.healthController());
-        ctx.addServlet(healthHolder, "/system/health");
-
         /*
          * Configure and start message streamer
          */
@@ -57,14 +54,23 @@ public class JettyMain {
 
         AtlasWriteClient atlasClient = new GsonAtlasClient(host, apiKey);
 
-        MessageStreamer messageStreamer = new MessageStreamer(Configurer.get("aws.sqsQueueName").get(),
+        IngestService messageStreamer = new IngestService(
             new BasicAWSCredentials(Configurer.get("aws.accessKey").get(),
-                Configurer.get("aws.secretKey").get()));
+            Configurer.get("aws.secretKey").get()),
+            new File(Configurer.get("ingest.temporaryFileDirectory").get()));
 
-        messageStreamer.registerFileProcessor(Configurer.get("aws.s3BucketName").get(), new XmlTvFileProcessor(atlasClient, new ProgrammeToItemTranslator()));
+        XmlTvFileProcessor xmlTvFileProcessor = new XmlTvFileProcessor(atlasClient, new ProgrammeToItemTranslator());
 
+        messageStreamer.registerFileProcessor(Configurer.get("aws.s3BucketName").get(), xmlTvFileProcessor);
         messageStreamer.start();
 
+        /*
+         * Add health web page
+         */
+
+        HealthModule healthModule = new HealthModule();
+        ServletHolder healthHolder = new ServletHolder(healthModule.healthController(xmlTvFileProcessor));
+        ctx.addServlet(healthHolder, "/system/health");
     }
 
     private static Server createServer() {

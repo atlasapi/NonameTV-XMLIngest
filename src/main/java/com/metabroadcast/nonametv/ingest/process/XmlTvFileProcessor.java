@@ -29,14 +29,18 @@ public class XmlTvFileProcessor implements FileProcessor {
     private final AtlasWriteClient atlasWriteClient;
     private final ProgrammeToItemTranslator programmeToItemTranslator;
 
+    private boolean lastRunSuccessful;
+
     public XmlTvFileProcessor(AtlasWriteClient atlasWriteClient,
         ProgrammeToItemTranslator programmeToItemTranslator) {
         this.atlasWriteClient = Preconditions.checkNotNull(atlasWriteClient);
         this.programmeToItemTranslator = Preconditions.checkNotNull(programmeToItemTranslator);
+
+        lastRunSuccessful = true;
     }
 
     @Override
-    public ProcessingResult process(File file) {
+    public ProcessingResult process(String originalFilename, File file) {
         log.debug("Started processing an XMLTV feed file");
         ProcessingResult processingResult = new ProcessingResult();
 
@@ -50,6 +54,7 @@ public class XmlTvFileProcessor implements FileProcessor {
         } catch (JAXBException e) {
             String error = "Unable to deserialise the input file as XMLTV-compliant XML";
             log.error(error, e);
+            lastRunSuccessful = false;
             processingResult.error("input file", error);
             return processingResult;
         }
@@ -57,6 +62,7 @@ public class XmlTvFileProcessor implements FileProcessor {
         if (tv == null) {
             String error = "Unable to deserialise a 'tv' element from the feed file";
             log.error(error);
+            lastRunSuccessful = false;
             processingResult.error("input file", error);
             return processingResult;
         }
@@ -94,8 +100,13 @@ public class XmlTvFileProcessor implements FileProcessor {
             }
 
             log.debug("Successfully posted programme {} item {}", programme, item);
+            lastRunSuccessful = true;
         }
         return processingResult;
+    }
+
+    public boolean wasLastRunSuccessful() {
+        return lastRunSuccessful;
     }
 
 }
