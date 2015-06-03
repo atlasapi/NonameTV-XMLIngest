@@ -43,7 +43,7 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <mainClass>com.metabroadcast.imap-s3.JettyMain</mainClass>
+                            <mainClass>com.metabroadcast.nonametv.ingest.JettyMain</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
