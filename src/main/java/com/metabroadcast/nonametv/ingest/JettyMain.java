@@ -1,5 +1,8 @@
 package com.metabroadcast.nonametv.ingest;
 
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
+import com.google.common.base.Strings;
 import java.io.File;
 import java.util.concurrent.Executor;
 
@@ -30,6 +33,10 @@ import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTransl
 
 public class JettyMain {
 
+    private static String awsAccessKey = Configurer.get("aws.accessKey").get();
+    private static String awsSecretKey = Configurer.get("aws.secretKey").get();
+    private static String awsSessionToken = Configurer.get("aws.sessionToken").get();
+
     public static void main(String[] args) throws Exception {
         Server server = createServer();
         ServletContextHandler ctx = new ServletContextHandler(server, "/");
@@ -55,8 +62,7 @@ public class JettyMain {
         AtlasWriteClient atlasClient = new GsonAtlasClient(host, apiKey);
 
         IngestService messageStreamer = new IngestService(
-            new BasicAWSCredentials(Configurer.get("aws.accessKey").get(),
-            Configurer.get("aws.secretKey").get()),
+            buildAwsCredentials(),
             new File(Configurer.get("ingest.temporaryFileDirectory").get()));
 
         XmlTvFileProcessor xmlTvFileProcessor = new XmlTvFileProcessor(atlasClient, new ProgrammeToItemTranslator());
@@ -102,6 +108,13 @@ public class JettyMain {
         server.setConnectors(new Connector[] { connector });
 
         return server;
+    }
+
+    private static AWSCredentials buildAwsCredentials() {
+        if (Strings.isNullOrEmpty(awsSessionToken)) {
+            return new BasicAWSCredentials(awsAccessKey, awsSecretKey);
+        }
+        return new BasicSessionCredentials(awsAccessKey, awsSecretKey, awsSessionToken);
     }
 
 }

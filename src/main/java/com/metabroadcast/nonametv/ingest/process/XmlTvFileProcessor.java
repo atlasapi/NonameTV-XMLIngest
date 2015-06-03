@@ -1,16 +1,5 @@
 package com.metabroadcast.nonametv.ingest.process;
 
-import java.io.File;
-
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBException;
-import javax.xml.bind.Unmarshaller;
-
-import org.atlasapi.client.AtlasWriteClient;
-import org.atlasapi.media.entity.simple.Item;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.base.Preconditions;
 import com.metabroadcast.common.ingest.s3.process.FileProcessor;
 import com.metabroadcast.common.ingest.s3.process.ProcessingResult;
@@ -18,6 +7,23 @@ import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTransl
 import com.metabroadcast.nonametv.ingest.process.translate.TranslationResult;
 import com.metabroadcast.nonametv.xml.Programme;
 import com.metabroadcast.nonametv.xml.Tv;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import javax.xml.XMLConstants;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Unmarshaller;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.transform.sax.SAXSource;
+import org.atlasapi.client.AtlasWriteClient;
+import org.atlasapi.media.entity.simple.Item;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 
 /**
  * @author will
@@ -44,14 +50,23 @@ public class XmlTvFileProcessor implements FileProcessor {
         log.debug("Started processing an XMLTV feed file");
         ProcessingResult processingResult = new ProcessingResult();
 
-        JAXBContext context;
-        Unmarshaller unmarshaller;
-        Tv tv;
+        Tv tv = null;
         try {
-            context = JAXBContext.newInstance(Tv.class);
-            unmarshaller = context.createUnmarshaller();
-            tv = (Tv)unmarshaller.unmarshal(file);
-        } catch (JAXBException e) {
+            JAXBContext context = JAXBContext.newInstance(Tv.class);
+
+            SAXParserFactory spf = SAXParserFactory.newInstance();
+            spf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            spf.setFeature("http://apache.org/xml/features/validation/schema", false);
+            spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+
+            XMLReader xmlReader = spf.newSAXParser().getXMLReader();
+            InputSource inputSource = new InputSource(new FileReader(file));
+            SAXSource source = new SAXSource(xmlReader, inputSource);
+
+            Unmarshaller unmarshaller = context.createUnmarshaller();
+
+            tv = (Tv)unmarshaller.unmarshal(source);
+        } catch (JAXBException | ParserConfigurationException | SAXException | FileNotFoundException e) {
             String error = "Unable to deserialise the input file as XMLTV-compliant XML";
             log.error(error, e);
             lastRunSuccessful = false;

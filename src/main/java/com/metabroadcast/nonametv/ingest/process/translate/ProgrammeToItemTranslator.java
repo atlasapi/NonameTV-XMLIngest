@@ -1,5 +1,6 @@
 package com.metabroadcast.nonametv.ingest.process.translate;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -121,6 +122,9 @@ public class ProgrammeToItemTranslator {
     private List<Person> getPeople(Programme programme, String itemUri) {
         List<Person> personList = new ArrayList<>();
         Credits credits = programme.getCredits();
+        if (credits == null) {
+            return ImmutableList.of();
+        }
         for (Actor actor : credits.getActor()) {
             Person person = new Person();
             person.setName(actor.getvalue());
