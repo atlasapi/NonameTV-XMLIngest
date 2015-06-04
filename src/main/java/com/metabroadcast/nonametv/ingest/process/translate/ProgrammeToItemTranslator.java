@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.atlasapi.media.entity.simple.BrandSummary;
 import org.atlasapi.media.entity.simple.Broadcast;
 import org.atlasapi.media.entity.simple.Item;
 import org.atlasapi.media.entity.simple.LocalizedDescription;
@@ -46,13 +47,27 @@ public class ProgrammeToItemTranslator {
     private static final Pattern XMLTV_STAR_RATING = Pattern.compile("([\\d\\.]+)\\s+/\\s+([\\d\\.]+)");
     private static final DateTimeFormatter XMLTV_DATE_FORMAT = DateTimeFormat.forPattern("yyyyMMddHHmmss Z");
 
+    private BrandUriGenerator brandUriGenerator;
+
+    public ProgrammeToItemTranslator(BrandUriGenerator brandUriGenerator) {
+        this.brandUriGenerator = brandUriGenerator;
+    }
+
     public TranslationResult translate(Programme programme) {
         List<String> warnings = new ArrayList<>();
         Item item = new Item();
+
         String itemUri = getUri(programme);
+
         item.setType("episode");
+
         item.setUri(itemUri);
-        item.setTitle(getTitle(programme));
+
+        String title = getTitle(programme);
+        item.setTitle(title);
+        BrandSummary brandSummary = new BrandSummary(brandUriGenerator.generate(programme));
+        item.setBrandSummary(brandSummary);
+
         item.setDescriptions(getLocalizedDescriptions(programme));
         item.setDescription(getDescription(programme));
         item.setPeople(getPeople(programme, itemUri));

@@ -1,11 +1,20 @@
 package com.metabroadcast.nonametv.ingest;
 
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
+import com.google.common.base.Optional;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.net.HostSpecifier;
+import com.metabroadcast.common.ingest.IngestService;
+import com.metabroadcast.common.properties.Configurer;
+import com.metabroadcast.nonametv.ingest.process.XmlTvFileProcessor;
+import com.metabroadcast.nonametv.ingest.process.translate.BrandFactory;
+import com.metabroadcast.nonametv.ingest.process.translate.BrandUriGenerator;
+import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTranslator;
 import java.io.File;
 import java.util.concurrent.Executor;
-
 import org.atlasapi.client.AtlasWriteClient;
 import org.atlasapi.client.GsonAtlasClient;
 import org.eclipse.jetty.io.ByteBufferPool;
@@ -21,15 +30,6 @@ import org.eclipse.jetty.util.thread.Scheduler;
 import org.eclipse.jetty.util.thread.ThreadPool;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletProperties;
-
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.net.HostSpecifier;
-import com.metabroadcast.common.ingest.IngestService;
-import com.metabroadcast.common.properties.Configurer;
-import com.metabroadcast.nonametv.ingest.process.XmlTvFileProcessor;
-import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTranslator;
 
 public class JettyMain {
 
@@ -65,7 +65,9 @@ public class JettyMain {
             buildAwsCredentials(),
             new File(Configurer.get("ingest.temporaryFileDirectory").get()));
 
-        XmlTvFileProcessor xmlTvFileProcessor = new XmlTvFileProcessor(atlasClient, new ProgrammeToItemTranslator());
+        BrandUriGenerator brandUriGenerator = new BrandUriGenerator();
+        XmlTvFileProcessor xmlTvFileProcessor = new XmlTvFileProcessor(atlasClient,
+            new ProgrammeToItemTranslator(brandUriGenerator), new BrandFactory(brandUriGenerator));
 
         messageStreamer.registerFileProcessor(Configurer.get("aws.s3BucketName").get(), xmlTvFileProcessor);
         messageStreamer.start();

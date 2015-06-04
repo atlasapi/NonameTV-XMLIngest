@@ -1,8 +1,10 @@
 package com.metabroadcast.nonametv.ingest.process;
 
-import com.google.common.base.Preconditions;
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import com.metabroadcast.common.ingest.s3.process.FileProcessor;
 import com.metabroadcast.common.ingest.s3.process.ProcessingResult;
+import com.metabroadcast.nonametv.ingest.process.translate.BrandFactory;
 import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTranslator;
 import com.metabroadcast.nonametv.ingest.process.translate.TranslationResult;
 import com.metabroadcast.nonametv.xml.Programme;
@@ -34,13 +36,16 @@ public class XmlTvFileProcessor implements FileProcessor {
 
     private final AtlasWriteClient atlasWriteClient;
     private final ProgrammeToItemTranslator programmeToItemTranslator;
+    private final BrandFactory brandFactory;
 
     private boolean lastRunSuccessful;
 
     public XmlTvFileProcessor(AtlasWriteClient atlasWriteClient,
-        ProgrammeToItemTranslator programmeToItemTranslator) {
-        this.atlasWriteClient = Preconditions.checkNotNull(atlasWriteClient);
-        this.programmeToItemTranslator = Preconditions.checkNotNull(programmeToItemTranslator);
+        ProgrammeToItemTranslator programmeToItemTranslator,
+        BrandFactory brandFactory) {
+        this.atlasWriteClient = checkNotNull(atlasWriteClient);
+        this.programmeToItemTranslator = checkNotNull(programmeToItemTranslator);
+        this.brandFactory = checkNotNull(brandFactory);
 
         lastRunSuccessful = true;
     }
@@ -50,7 +55,7 @@ public class XmlTvFileProcessor implements FileProcessor {
         log.debug("Started processing an XMLTV feed file");
         ProcessingResult processingResult = new ProcessingResult();
 
-        Tv tv = null;
+        Tv tv;
         try {
             JAXBContext context = JAXBContext.newInstance(Tv.class);
 
@@ -98,6 +103,7 @@ public class XmlTvFileProcessor implements FileProcessor {
             }
 
             try {
+                atlasWriteClient.writeItem(brandFactory.createFrom(programme));
                 atlasWriteClient.writeItem(item);
             } catch (RuntimeException e) {
                 log.debug("Unable to insert into Atlas programme {}", programmeId, e);
@@ -108,6 +114,7 @@ public class XmlTvFileProcessor implements FileProcessor {
             switch (translationResult.getStatus()) {
             case SUCCESS:
                 processingResult.success();
+                break;
             case WARNING:
                 for (String warning : translationResult.getErrors()) {
                     processingResult.warning(programmeId, warning);

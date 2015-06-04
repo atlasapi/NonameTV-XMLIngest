@@ -38,6 +38,8 @@ public class ProgrammeToItemTranslatorTest {
 
     private Programme validProgramme;
 
+    private BrandUriGenerator brandUriGenerator;
+
     @Before
     public void setUp() throws URISyntaxException, FileNotFoundException, JAXBException {
         JAXBContext context;
@@ -48,7 +50,9 @@ public class ProgrammeToItemTranslatorTest {
         URL validProgrammeUrl = Resources.getResource(getClass(), "validProgramme.xml");
         validProgramme = (Programme)unmarshaller.unmarshal(validProgrammeUrl);
 
-        translator = new ProgrammeToItemTranslator();
+        brandUriGenerator = new BrandUriGenerator();
+
+        translator = new ProgrammeToItemTranslator(brandUriGenerator);
     }
 
     @Test
