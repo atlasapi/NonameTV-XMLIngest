@@ -2,16 +2,10 @@ package com.metabroadcast.nonametv.ingest.process;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.metabroadcast.common.ingest.s3.process.FileProcessor;
-import com.metabroadcast.common.ingest.s3.process.ProcessingResult;
-import com.metabroadcast.nonametv.ingest.process.translate.BrandFactory;
-import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTranslator;
-import com.metabroadcast.nonametv.ingest.process.translate.TranslationResult;
-import com.metabroadcast.nonametv.xml.Programme;
-import com.metabroadcast.nonametv.xml.Tv;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+
 import javax.xml.XMLConstants;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -19,6 +13,7 @@ import javax.xml.bind.Unmarshaller;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.sax.SAXSource;
+
 import org.atlasapi.client.AtlasWriteClient;
 import org.atlasapi.media.entity.simple.Item;
 import org.slf4j.Logger;
@@ -26,6 +21,14 @@ import org.slf4j.LoggerFactory;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.XMLReader;
+
+import com.metabroadcast.common.ingest.s3.process.FileProcessor;
+import com.metabroadcast.common.ingest.s3.process.ProcessingResult;
+import com.metabroadcast.nonametv.ingest.process.translate.BrandFactory;
+import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTranslator;
+import com.metabroadcast.nonametv.ingest.process.translate.TranslationResult;
+import com.metabroadcast.nonametv.xml.Programme;
+import com.metabroadcast.nonametv.xml.Tv;
 
 /**
  * @author will
@@ -53,7 +56,7 @@ public class XmlTvFileProcessor implements FileProcessor {
     @Override
     public ProcessingResult process(String originalFilename, File file) {
         log.debug("Started processing an XMLTV feed file");
-        ProcessingResult processingResult = new ProcessingResult();
+        ProcessingResult.Builder resultBuilder = ProcessingResult.builder();
 
         Tv tv;
         try {
@@ -75,16 +78,16 @@ public class XmlTvFileProcessor implements FileProcessor {
             String error = "Unable to deserialise the input file as XMLTV-compliant XML";
             log.error(error, e);
             lastRunSuccessful = false;
-            processingResult.error("input file", error);
-            return processingResult;
+            resultBuilder.error("input file", error);
+            return resultBuilder.build();
         }
 
         if (tv == null) {
             String error = "Unable to deserialise a 'tv' element from the feed file";
             log.error(error);
             lastRunSuccessful = false;
-            processingResult.error("input file", error);
-            return processingResult;
+            resultBuilder.error("input file", error);
+            return resultBuilder.build();
         }
 
         for (Programme programme : tv.getProgramme()) {
@@ -97,7 +100,7 @@ public class XmlTvFileProcessor implements FileProcessor {
             case ERROR:
                 log.debug("Error(s) translating programme {}", programmeId);
                 for (String error : translationResult.getErrors()) {
-                    processingResult.error(programmeId, error);
+                    resultBuilder.error(programmeId, error);
                 }
                 continue;
             }
@@ -107,24 +110,25 @@ public class XmlTvFileProcessor implements FileProcessor {
                 atlasWriteClient.writeItem(item);
             } catch (RuntimeException e) {
                 log.debug("Unable to insert into Atlas programme {}", programmeId, e);
-                processingResult.error(programmeId, "Unable to insert into Atlas: " + e.getMessage());
+                resultBuilder.error(programmeId,
+                        "Unable to insert into Atlas: " + e.getMessage());
                 continue;
             }
 
             switch (translationResult.getStatus()) {
             case SUCCESS:
-                processingResult.success();
+                resultBuilder.success();
                 break;
             case WARNING:
                 for (String warning : translationResult.getErrors()) {
-                    processingResult.warning(programmeId, warning);
+                    resultBuilder.warning(programmeId, warning);
                 }
             }
 
             log.debug("Successfully posted programme {} item {}", programme, item);
             lastRunSuccessful = true;
         }
-        return processingResult;
+        return resultBuilder.build();
     }
 
     public boolean wasLastRunSuccessful() {
