@@ -80,7 +80,7 @@ public class XmlTvFileProcessor implements FileProcessor {
             String error = "Unable to deserialise the input file as XMLTV-compliant XML";
             log.error(error, e);
             lastRunSuccessful = false;
-            resultBuilder.error(error + " " + Throwables.getStackTraceAsString(e));
+            resultBuilder.error(String.format("input file: %s", error));
             return resultBuilder.build();
         }
 
@@ -88,7 +88,7 @@ public class XmlTvFileProcessor implements FileProcessor {
             String error = "Unable to deserialise a 'tv' element from the feed file";
             log.error(error);
             lastRunSuccessful = false;
-            resultBuilder.error(error);
+            resultBuilder.error(String.format("input file: %s", error));
             return resultBuilder.build();
         }
 
