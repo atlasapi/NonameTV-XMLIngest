@@ -14,6 +14,8 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.sax.SAXSource;
 
+import com.google.common.base.Throwables;
+import com.metabroadcast.common.ingest.monitorclient.model.Entity;
 import org.atlasapi.client.AtlasWriteClient;
 import org.atlasapi.media.entity.simple.Item;
 import org.slf4j.Logger;
@@ -78,7 +80,7 @@ public class XmlTvFileProcessor implements FileProcessor {
             String error = "Unable to deserialise the input file as XMLTV-compliant XML";
             log.error(error, e);
             lastRunSuccessful = false;
-            resultBuilder.error("input file", error);
+            resultBuilder.error(String.format("input file: %s", error));
             return resultBuilder.build();
         }
 
@@ -86,7 +88,7 @@ public class XmlTvFileProcessor implements FileProcessor {
             String error = "Unable to deserialise a 'tv' element from the feed file";
             log.error(error);
             lastRunSuccessful = false;
-            resultBuilder.error("input file", error);
+            resultBuilder.error(String.format("input file: %s", error));
             return resultBuilder.build();
         }
 
@@ -100,7 +102,10 @@ public class XmlTvFileProcessor implements FileProcessor {
             case ERROR:
                 log.debug("Error(s) translating programme {}", programmeId);
                 for (String error : translationResult.getErrors()) {
-                    resultBuilder.error(programmeId, error);
+                    resultBuilder.error(String.format("Programme ID: %s. Warning: %s",
+                            programmeId,
+                            error
+                    ));
                 }
                 continue;
             }
@@ -110,18 +115,30 @@ public class XmlTvFileProcessor implements FileProcessor {
                 atlasWriteClient.writeItem(item);
             } catch (RuntimeException e) {
                 log.debug("Unable to insert into Atlas programme {}", programmeId, e);
-                resultBuilder.error(programmeId,
-                        "Unable to insert into Atlas: " + e.getMessage());
+                resultBuilder.error(String.format(
+                        "%s Unable to insert into Atlas: %s",
+                        programmeId,
+                        Throwables.getStackTraceAsString(e)
+                ));
                 continue;
             }
 
             switch (translationResult.getStatus()) {
             case SUCCESS:
-                resultBuilder.success();
+                Entity successEntity = Entity.success().build();
+                resultBuilder.addEntity(successEntity);
                 break;
             case WARNING:
                 for (String warning : translationResult.getErrors()) {
-                    resultBuilder.warning(programmeId, warning);
+                    resultBuilder.error(String.format("Programme ID: %s. Warning: %s",
+                            programmeId,
+                            warning
+                    ));
+                    Entity failureEntity = Entity.failure().withError(String.format("Programme ID: %s. Warning: %s",
+                            programmeId,
+                            warning
+                    )).build();
+                    resultBuilder.addEntity(failureEntity);
                 }
             }
 
