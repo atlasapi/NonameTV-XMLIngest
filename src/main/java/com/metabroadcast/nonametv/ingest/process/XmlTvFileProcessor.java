@@ -1,5 +1,7 @@
 package com.metabroadcast.nonametv.ingest.process;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -12,10 +14,16 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.sax.SAXSource;
 
+import com.google.common.base.Throwables;
+import com.metabroadcast.common.ingest.monitorclient.model.Entity;
 import org.atlasapi.client.AtlasWriteClient;
 import org.atlasapi.media.entity.simple.Item;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 
-import com.metabroadcast.common.ingest.monitorclient.model.Entity;
 import com.metabroadcast.common.ingest.s3.process.FileProcessor;
 import com.metabroadcast.common.ingest.s3.process.ProcessingResult;
 import com.metabroadcast.nonametv.ingest.process.translate.BrandFactory;
@@ -23,15 +31,6 @@ import com.metabroadcast.nonametv.ingest.process.translate.ProgrammeToItemTransl
 import com.metabroadcast.nonametv.ingest.process.translate.TranslationResult;
 import com.metabroadcast.nonametv.xml.Programme;
 import com.metabroadcast.nonametv.xml.Tv;
-
-import com.google.common.base.Throwables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-import org.xml.sax.XMLReader;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * @author will
@@ -103,7 +102,10 @@ public class XmlTvFileProcessor implements FileProcessor {
             case ERROR:
                 log.debug("Error(s) translating programme {}", programmeId);
                 for (String error : translationResult.getErrors()) {
-                    resultBuilder.error(String.format("%s: %s", programmeId, error));
+                    resultBuilder.error(String.format("Programme ID: %s. Warning: %s",
+                            programmeId,
+                            error
+                    ));
                 }
                 continue;
             }
@@ -113,18 +115,30 @@ public class XmlTvFileProcessor implements FileProcessor {
                 atlasWriteClient.writeItem(item);
             } catch (RuntimeException e) {
                 log.debug("Unable to insert into Atlas programme {}", programmeId, e);
-                resultBuilder.error(String.format("%s%nUnable to insert into Atlas: %s", programmeId, Throwables.getStackTraceAsString(e)));
+                resultBuilder.error(String.format(
+                        "%s Unable to insert into Atlas: %s",
+                        programmeId,
+                        Throwables.getStackTraceAsString(e)
+                ));
                 continue;
             }
 
             switch (translationResult.getStatus()) {
             case SUCCESS:
-                Entity entity = Entity.success().build();
-                resultBuilder.addEntity(entity);
+                Entity successEntity = Entity.success().build();
+                resultBuilder.addEntity(successEntity);
                 break;
             case WARNING:
                 for (String warning : translationResult.getErrors()) {
-                    resultBuilder.error(String.format("%s%n%s", programmeId, warning));
+                    resultBuilder.error(String.format("Programme ID: %s. Warning: %s",
+                            programmeId,
+                            warning
+                    ));
+                    Entity failureEntity = Entity.failure().withError(String.format("Programme ID: %s. Warning: %s",
+                            programmeId,
+                            warning
+                    )).build();
+                    resultBuilder.addEntity(failureEntity);
                 }
             }
 
